@@ -1,9 +1,9 @@
 package iohk
 
 import iohk.Base._
+import monix.eval.Task
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.Future
 import scala.util.Random
 
 object Mining {
@@ -63,25 +63,26 @@ object Mining {
    NOTE Remember that the block hash can be transformed to an actual number,
         so we can talk about hash and number interchangeably.*/
   def mineNextBlock(index: Int, parentHash: Hash, transactions: Seq[Transaction], miningTargetNumber: BigInt): Future[Block] = {
-    var nonceValue = Promise[Long]
-    def mineBlock(): Unit = {
+    import monix.execution.Scheduler.Implicits.global
+
+    def mineBlock(): Long = {
+      var nonceValue = 0L
       var nonceGotten = false
       while (!nonceGotten) {
         val nonce = new Random().nextLong() + 1
         val blk = new Block(index, parentHash, transactions, miningTargetNumber, nonce)
         if (blk.cryptoHash.toNumber < miningTargetNumber) {
           nonceGotten = true
-          nonceValue = Promise.successful(nonce)
+          nonceValue = nonce
         }
       }
+      nonceValue
     }
 
-    Future.sequence(Seq.fill(2)(Future(mineBlock())))
-      .flatMap { _ =>
-        nonceValue.future.map { nnce =>
-          Block(index, parentHash, transactions, miningTargetNumber, nnce)
-        }
-      }
+    val taskSeq = Seq.fill(3)(Task(mineBlock()))
+    Task.raceMany(taskSeq)
+      .runToFuture
+      .map(e => Block(index, parentHash, transactions, miningTargetNumber, e))
   }
 
   def numberOfLeadingZeros(amount: Int, hash: Hash): Boolean = hash.bytes.count(_.toChar == '0') == amount

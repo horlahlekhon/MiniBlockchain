@@ -18,7 +18,7 @@ trait Blockchain {
   def findByHash(hash: Hash): Option[Block]
 
   // Find a common ancestor between this blockchain and that blockchain.
-  def common_ancestor(that: Blockchain): Unknown
+  def common_ancestor(that: Blockchain): Boolean
 
   def lastBlock: Block
 
@@ -65,7 +65,17 @@ class FastBlockchain(val genesis: Block) extends Blockchain {
         None
     }
 
-  override def common_ancestor(that: Blockchain): Unknown = ???
+  /*I dont really get the concept of common ancestors,
+   so i assumed if the two chain's genesis block has the parentHash there might be a relation there somewhere
+   */
+  override def common_ancestor(that: Blockchain): Boolean = {
+    that.findByIndex(0) match {
+      case Some(value) =>
+        value.parentHash == this.genesis.parentHash
+      case None =>
+        false
+    }
+  }
 
   override def toString: String = chain.mkString
 
